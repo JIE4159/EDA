@@ -1,0 +1,170 @@
+#imports a bunch of packages
+import pandas as pd #pandas is the package we're going to be using the most of!
+import matplotlib.pyplot as plt #matplotlib is a great plotting library
+plt.style.use('ggplot') #this adds a customised style to my plots
+% matplotlib inline 
+#this makes sure my plots show up!
+
+#we'll start off by loading our dataset
+#pandas makes it incredibly easy to load CSVs, tabular data, json files, etc. 
+#pandas can read a file from a local computer or directly from a URL
+df = pd.read_csv('Washington_DC_Public_Art.csv') #assign the CSV we're going to work on to the variable DF
+
+df.head() #this command let's us see the first 5 rows of data
+#it's good practice to run this right at the beginning to double-check everything looks as we expect it to
+
+
+df.tail(10) #this lets us see the last 10 rows -- 5 is the default but you can specify a number in the parentheses and pull a specific number
+
+
+#we can take a look at what each column is without having to scroll
+df.columns
+
+
+#to drop a column we don't need. 
+df = df.drop('OBJECTID', axis=1)
+
+
+df.head()
+
+
+#check how many total rows and columns we have print 
+(df.shape) 
+#and how many of those rows are missing values 
+df.isnull().sum()
+
+#and check the data type of each column
+df.dtypes
+#floats are numbers with fractional parts/decimals (3.14, for example)
+#ints are whole numbers (3)
+#objects in pandas usually mean this is a string (characters)
+
+
+#we can also check how many unique items there are in a pandas series/column
+for item in df:
+    print (item)
+    print (df[item].nunique())
+
+#and how many occurrences of each value there are in each series (pandas' terminology for column)
+df.NEIGHBORHOOD.value_counts()
+
+
+#typing everything in ALL CAPS is annoying, so let's convert all the column headings to lower case #save the column names as lower-case strings df.columns = df.columns.str.lower()
+
+
+#double-check to see if we accomplished this df.head(2)
+
+
+#pandas can also be great for data cleaning. here i'm dropping 4 rows that i'd identified with mistakes in the years column/series
+df = df.drop(df.index[[154, 54, 149, 130]])
+
+#before we get started, let's map out all art work
+#code 100% taken from stackoverflow
+cmap = plt.cm.Dark2 #this sets the colourmap we want
+norm = plt.Normalize(df['ward'].values.min(), df['ward'].values.max()) #this normalizes our colourmap (sets all the values between 0 and 1)
+
+for i, dff in df.groupby("ward"): #we iterate through a filtered dataframe
+    plt.scatter(dff['x'], dff['y'], c=cmap(norm(dff['ward'])), #then say that we want a scatter plot of x against y with each ward as a colour
+                edgecolors='none', label="Ward {:g}".format(i)) #and then we specify that our labels should say "Ward + ward number"
+
+plt.legend() #this is what we add to make sure we can see a legend
+
+Let's start off with framing a few questions we have of the dataset
+1) Which neighbourhoods have the most public art in DC?
+2) Were particular mediums of art more popular in certain years?
+3) Which areas have the most permanent exhibits?
+4) Are certain mediums more common in specific areas?
+5) Has there been an increase in the amount of public art in DC over the years?
+1) Which neighbourhoods have the most public art in DC?
+ 
+#lowering all the strings in neighbourhoods to avoid some of the duplicate names df.neighborhood = df.neighborhood.str.lower() 
+
+#first counting the number of times each neighbourhood appears in the dataframe, then plotting a bar chart that captures this information and specifying the size of the figure and font so we can see everything df.neighborhood.value_counts().plot(kind='bar', figsize=(40,40), fontsize=25)
+
+#and if you just want to see the names, here are the top five neighbourhoods with public art
+df.neighborhood.value_counts()[:5]
+
+
+#which WARD has the most public art? df.ward.value_counts().sort_index().plot(kind='bar')
+
+#quick tool tip for datasets with more numerical data
+#you can look at relationships between different columns/variables by using a scatter matrix
+#this is obviously not a great example but here's the code for it
+from pandas.tools.plotting import scatter_matrix
+scatter_matrix(df, alpha=0.6, figsize=(6, 6), diagonal='kde')
+ 
+2) Were particular mediums of art more popular in certain years?
+
+#we're going to use a function to check what the most common and least common mediums are in any given year:
+def most_least_common(year): #this defines the function 
+    print ('In the year '+ str(year)) #this will print out the first line and the year we're looking at
+    print (df[df['year']==str(year)].medium.value_counts()[:1]) #this creates a filtered dataframe of rows in the year we're looking at. It then counts the number of time each medium occurs and we slice that dataframe to only call the first one 
+    print ('was most popular')
+    print (df[df['year']==str(year)].medium.value_counts()[-1:]) #this creates the same filtered dataframe, counts the number of time each medium occurs, but only pulls out the last row
+    print ('was least popular')
+
+#note: this is obviously not the best way to look at the least popular medium given there are so many things that only occur once, but I wanted to demonstrate how you'd select rows at the bottom of a dataframe!
+
+most_least_common(2014)
+most_least_common(1998)
+most_least_common(2008)
+
+
+#side question: has the use of paint gone down? #we're first going to make sure everything in medium is lower case df.medium = df.medium.str.lower() #we're creating a filtered dataframe where the word 'paint' appears in any medium, counting the number of times that occurs per year, sorting our values by the index (year) instead of frequency, and then generating a line plot df[df.medium.str.contains('paint')==True].year.value_counts().sort_index().plot(kind='line')
+
+#what if we wanted to look at both paint AND murals (which are a kind of paint, right?)
+df[(df.medium.str.contains('paint') | df.medium.str.contains('mural'))].year.value_counts().sort_index().plot(kind='line')
+
+3) Which areas have the most permanent exhibits?
+
+#to figure this out, let's first convert the 'duration' column to numbers so it's easier to sum up. #one of the ways we can do that is to create a dictionary where we assign a number to each string boolean = {'Temporary': 0, 'Permanent': 1} #we can then map those values to the 'duration' column so the string values are replaced with the numbers we coded df['duration'] = df.duration.map(boolean)
+
+
+#now we can group by wards and then sum up the number of permanent exhibits we have df.groupby('ward').duration.sum().sort_values(ascending=False)
+cmap = plt.cm.Dark2 #this sets the colourmap we want
+norm = plt.Normalize(df['duration'].values.min(), df['duration'].values.max()) #this normalizes our colourmap (sets all the values between 0 and 1)
+
+for i, dff in df.groupby("duration"): #we iterate through a filtered dataframe
+    plt.scatter(dff['x'], dff['y'], c=cmap(norm(dff['duration'])), #then say that we want a scatter plot of x against y with each duration as a colour
+                edgecolors='none', label="{0}".format(i)) #and then we specify that our labels should say 0 or 1
+
+plt.legend() #this is what we add to make sure we can see a legend
+
+
+#we can also do that by neighbourhood df.groupby('neighborhood').duration.sum().sort_values(ascending=False)
+
+4) Are certain mediums more common in specific areas?
+
+def popular(neighborhood): #this defines the function again print ('in', neighborhood) #we're asking our function to specify the neighbourhood we're looking for print (df[df['neighborhood'].str.contains(neighborhood)==True].medium.value_counts()[:5]) #this creates a filtered dataframe of rows in the neighbourhood we're looking at. It then counts the number of time each medium occurs and we slice that dataframe to call the top 5 print ('were most popular') #note: by using str.contains(), we're looking for anything that would contain the substring 'shaw' so we can count things like logan circle/shaw
+popular('shaw')
+popular('anacostia')
+
+#so that doesn't QUITE answer our question, so let's try this:
+def common(medium): #this defines the function again
+    print ('the medium', medium, 'was most popular in')
+    print (df[df['medium'].str.contains(medium)==True].neighborhood.value_counts()[:5])
+common('paint')
+common('wood')
+common('maps')
+
+5) Has there been an increase in the amount of public art in DC over the years?
+
+#the ability to work with datetime structures is one of the best things about pandas
+#you can create a column with the date by calling pandas.to_datetime(column_name)
+df['date'] = pd.to_datetime(df['year'])
+#obviously not every piece of art was completed on 1 Jan, and we're only really interested in the year, so let's extract that into our old year column
+df['year'] = df['date'].dt.year
+
+
+df.year.value_counts().sort_index().plot(kind='line')
+plt.xlabel("Year")
+plt.ylabel("Pieces of art")
+plt.title("Public art over the years")
+
+#what about looking at the rate of change in each ward?
+#to do that we're first going to create a new dataframe comparing years against ward
+df_ward = pd.crosstab(df.year, df.ward)
+
+
+
+plt.plot(df_ward[:], linewidth=6.0) plt.legend(df_ward.columns) #change figure size fig_size = plt.rcParams["figure.figsize"] fig_size[0] = 50 fig_size[1] = 30 plt.rcParams["figure.figsize"] = fig_size #change font size font = {'family' : 'normal', 'weight' : 'bold', 'size' : 22} plt.rc('font', **font)
